@@ -37,7 +37,7 @@ Copy `config.example.json` to `config.json` (picked up automatically) and set:
 | Cache rewrites | large cache writes split into first request / idle gap / prefix breaker, with cost | real, classified with `ttl_minutes` |
 | When | cost by hour of day; off-hours cost reveals loops and scheduled tasks | real |
 | By tool | per tool and per MCP server: direct tokens, **carried** tokens (re-read on every later request), estimated cost, biggest single results | estimate from characters, with a calibration factor against the real counts |
-| Sessions | top sessions with peak context, cache hit, idle and breaker rewrites, subagents, images; click for the context growth curve | real |
+| Sessions | top sessions with a **why** label (big context, idle rewrites, prefix breakers, many requests, low cache hit, expensive model, subagent fan-out), peak context, cache hit, rewrite counts, subagents, images; click for the context growth curve | real |
 
 "Carried" is the number people miss: a 40k-token tool result in a session that runs 200 more requests is 8 million tokens of cache reads. That is why Bash output and big file reads dominate even when each result looks small.
 

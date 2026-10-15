@@ -112,7 +112,7 @@ details summary { cursor: pointer; color: var(--ink2); font-size: 13px; }
   <div class="grid">
     <div class="card wide">
       <h2>Most expensive sessions</h2>
-      <div class="note" style="margin:0 0 8px">Click a row to see how its context grew. <b>idle</b> = large cache rewrites after a pause longer than the cache lifetime; <b>breaker</b> = rewrites with no pause (model/effort/tool change, compaction, image pruning).</div>
+      <div class="note" style="margin:0 0 8px">Click a row to see how its context grew. <b>why</b> = which multiplier made the session expensive (hover for the threshold). <b>idle</b> = large cache rewrites after a pause longer than the cache lifetime; <b>breaker</b> = rewrites with no pause (model/effort/tool change, compaction, image pruning).</div>
       <div class="tbl"><table id="sessions"></table></div>
       <div id="growthWrap" style="margin-top:12px" hidden>
         <h2 id="growthTitle"></h2>
@@ -259,8 +259,21 @@ hbars($('#projects'), DATA.projects.slice(0, 12).map(r => ({...r, _label: r.proj
 // ---------------- sessions + growth
 {
   const rows = DATA.sessions;
-  $('#sessions').innerHTML = `<thead><tr><th>#</th><th>project</th><th>started</th><th class="n">hours</th><th class="n">est. $</th><th class="n">requests</th><th class="n">turns</th><th class="n">peak ctx</th><th class="n">cache hit</th><th class="n">idle</th><th class="n">breaker</th><th class="n">sub</th><th class="n">img</th><th>models</th></tr></thead><tbody>` +
-    rows.map((r, i) => `<tr data-i="${i}"><td>${i+1}</td><td>${esc(r.project.replace(/^-home-[^-]+-/, ''))}<br><code style="font-size:11px;color:var(--muted)">${r.short}</code></td><td class="n">${r.start}</td><td class="n">${r.hours}</td><td class="n">${usd(r.cost)}</td><td class="n">${r.requests.toLocaleString()}</td><td class="n">${r.turns}</td><td class="n">${fmt(r.peak)}</td><td class="n">${pct(r.hit)}</td><td class="n">${r.idle}</td><td class="n">${r.breaker}</td><td class="n">${r.subagents}</td><td class="n">${r.images}</td><td>${r.models.map(([m,n]) => `<span class="pill">${esc(m)} ${n}</span>`).join('')}</td></tr>`).join('') + '</tbody>';
+  // "why" label: which multiplier made this session expensive (thresholds in the title attribute)
+  const why = (r) => {
+    const out = [];
+    if (r.peak >= 250000) out.push(['big context', `peak context ${fmt(r.peak)} tokens; every later request re-read it`]);
+    if (r.idle >= 3) out.push(['idle rewrites', `${r.idle} full cache rewrites after pauses longer than ${M.ttl_minutes} min`]);
+    if (r.breaker >= 3) out.push(['prefix breakers', `${r.breaker} cache rewrites with no pause: model/effort switch, MCP change, compaction, image pruning`]);
+    if (r.requests >= 800) out.push(['many requests', `${r.requests.toLocaleString()} API requests: long loops, repeated test runs, fan-out`]);
+    if (r.hit < 0.85) out.push(['low cache hit', `${pct(r.hit)} of input-side tokens from cache`]);
+    const top = r.models[0] ? r.models[0][0] : '';
+    if (/fable|opus/.test(top) && r.cost >= 20) out.push(['expensive model', `${top} handled most requests`]);
+    if (r.subagents >= 15) out.push(['subagent fan-out', `${r.subagents} subagent transcripts`]);
+    return out.length ? out : [['normal', 'none of the usual multipliers stands out']];
+  };
+  $('#sessions').innerHTML = `<thead><tr><th>#</th><th>project</th><th>why</th><th>started</th><th class="n">hours</th><th class="n">est. $</th><th class="n">requests</th><th class="n">turns</th><th class="n">peak ctx</th><th class="n">cache hit</th><th class="n">idle</th><th class="n">breaker</th><th class="n">sub</th><th class="n">img</th><th>models</th></tr></thead><tbody>` +
+    rows.map((r, i) => `<tr data-i="${i}"><td>${i+1}</td><td>${esc(r.project.replace(/^-home-[^-]+-/, ''))}<br><code style="font-size:11px;color:var(--muted)">${r.short}</code></td><td>${why(r).map(([l,t]) => `<span class="pill" title="${esc(t)}">${l}</span>`).join('')}</td><td class="n">${r.start}</td><td class="n">${r.hours}</td><td class="n">${usd(r.cost)}</td><td class="n">${r.requests.toLocaleString()}</td><td class="n">${r.turns}</td><td class="n">${fmt(r.peak)}</td><td class="n">${pct(r.hit)}</td><td class="n">${r.idle}</td><td class="n">${r.breaker}</td><td class="n">${r.subagents}</td><td class="n">${r.images}</td><td>${r.models.map(([m,n]) => `<span class="pill">${esc(m)} ${n}</span>`).join('')}</td></tr>`).join('') + '</tbody>';
   function growth(i) {
     const r = rows[i], pts = r.growth; if (!pts || pts.length < 2) return;
     document.querySelectorAll('#sessions tbody tr').forEach(tr => tr.classList.toggle('sel', +tr.dataset.i === i));
