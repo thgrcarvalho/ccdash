@@ -254,7 +254,6 @@ def aggregate(root, cfg, since_days, pricing):
         ttl_min, ttl_source, share_1h = detect_ttl(parsed, in_period)
     else:
         ttl_min, ttl_source, share_1h = float(cfg["ttl_minutes"]), "from config", None
-    ttl = dt.timedelta(minutes=ttl_min)
     totals = collections.Counter()
     comp = collections.Counter()
     daily = collections.defaultdict(lambda: collections.Counter())
@@ -266,6 +265,12 @@ def aggregate(root, cfg, since_days, pricing):
                                                     models=collections.Counter(), growth=[], idle=0, breaker=0,
                                                     subagents=0, images=0, turns=0, first=None, last=None, project=""))
     misses = {k: collections.Counter(n=0, tok=0, cost=0.0) for k in ("first", "idle", "breaker")}
+    GAP_BUCKETS = ["5-15 min", "15-60 min", "1-4 h", "4-24 h", "> 24 h"]
+    idle_gaps = {b: collections.Counter(n=0, cost=0.0) for b in GAP_BUCKETS}
+    whatif = collections.Counter(now=0.0, alt=0.0, extra_rewrites=0)   # main-conversation cache writes, observed vs other lifetime
+
+    def gap_bucket(g):
+        return GAP_BUCKETS[0] if g <= 15 else GAP_BUCKETS[1] if g <= 60 else GAP_BUCKETS[2] if g <= 240 else GAP_BUCKETS[3] if g <= 1440 else GAP_BUCKETS[4]
     tools = collections.defaultdict(collections.Counter)
     servers = collections.defaultdict(collections.Counter)
     biggest = []
@@ -337,22 +342,39 @@ def aggregate(root, cfg, since_days, pricing):
                 hourly[lt.hour] += cost
                 weekday[lt.weekday()] += cost
                 # cache rewrite classification (large writes only)
+                gap_min = None
+                if prev is not None and prev["ts"] and r["ts"]:
+                    gap_min = (r["ts"] - prev["ts"]).total_seconds() / 60
+                cls = None
+                wcost = pricing.cost(r["model"], cw5=r["cw"] - r["cw1"], cw1=r["cw1"])
                 if r["cw"] > 20000:
-                    wcost = pricing.cost(r["model"], cw5=r["cw"] - r["cw1"], cw1=r["cw1"])
                     if prev is None:
                         cls = "first"
-                    elif prev["ts"] and r["ts"] and r["ts"] - prev["ts"] > ttl:
+                    elif gap_min is not None and gap_min > ttl_min:
                         cls = "idle"
                     elif prev["ctx"] > 0 and r["cw"] > 0.5 * prev["ctx"]:
                         cls = "breaker"
-                    else:
-                        cls = None
                     if cls:
                         misses[cls]["n"] += 1
                         misses[cls]["tok"] += r["cw"]
                         misses[cls]["cost"] += wcost
                         if cls in ("idle", "breaker") and not f["sub"]:
                             S[cls] += 1
+                        if cls == "idle":
+                            b = gap_bucket(gap_min)
+                            idle_gaps[b]["n"] += 1
+                            idle_gaps[b]["cost"] += wcost
+                # what-if: the same session under the other cache lifetime (main conversation only)
+                if not f["sub"]:
+                    whatif["now"] += wcost
+                    if ttl_min <= 5:
+                        if not (cls == "idle" and gap_min <= 60):          # a 1h cache would still be warm
+                            whatif["alt"] += pricing.cost(r["model"], cw1=r["cw"])
+                    else:
+                        whatif["alt"] += pricing.cost(r["model"], cw5=r["cw"])
+                        if gap_min is not None and 5 < gap_min <= ttl_min and cls is None and prev["ctx"] > 20000:
+                            whatif["alt"] += pricing.cost(r["model"], cw5=prev["ctx"])   # would have expired
+                            whatif["extra_rewrites"] += 1
             prev = r
         # --- per tool result ---
         req_idx = [i for i, _ in reqs]
@@ -444,6 +466,9 @@ def aggregate(root, cfg, since_days, pricing):
         "projects": project_rows,
         "sessions": sess_rows[: int(cfg["top_sessions"])],
         "misses": {k: {kk: round(vv, 2) for kk, vv in v.items()} for k, v in misses.items()},
+        "idle_gaps": [dict(bucket=b, n=idle_gaps[b]["n"], cost=round(idle_gaps[b]["cost"], 2)) for b in GAP_BUCKETS],
+        "whatif": {"ttl_now": ttl_min, "ttl_alt": 60 if ttl_min <= 5 else 5, "write_cost_now": round(whatif["now"], 4),
+                   "write_cost_alt": round(whatif["alt"], 4), "extra_rewrites": whatif["extra_rewrites"]},
         "tools": tool_rows[: int(cfg["top_tools"])],
         "tools_total": {k: round(sum(t[k] for t in tool_rows), 2) for k in ("calls", "direct", "carried", "cost")},
         "servers": server_rows,

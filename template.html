@@ -225,7 +225,20 @@ hbars($('#projects'), DATA.projects.slice(0, 12).map(r => ({...r, _label: r.proj
   $('#misses').innerHTML = `<table><thead><tr><th>large cache writes (&gt; 20k tokens)</th><th></th><th class="n">count</th><th class="n">tokens</th><th class="n">est. $</th></tr></thead><tbody>` +
     rows.map(r => `<tr><td>${r.l}</td><td style="width:30%"><span class="bar" style="width:${(r.cost/max*100).toFixed(1)}%;background:var(--s2)"></span></td><td class="n">${r.n}</td><td class="n">${fmt(r.tok)}</td><td class="n">${usd(r.cost)}</td></tr>`).join('') + '</tbody></table>';
   const tot = rows.reduce((s,r) => s + r.cost, 0);
-  $('#missNote').textContent = tot ? `Rewrites are ${pct(tot / Math.max(T.cost, 1e-9))} of estimated cost. Lifetime ${M.ttl_source}. Idle rewrites are avoidable: finish and /clear, or keep turns inside the cache lifetime. On Bedrock the lifetime is 5 min unless CLAUDE_CODE_PROMPT_CACHE_TTL=1h is set.` : 'No large cache rewrites in the period.';
+  const gaps = (DATA.idle_gaps || []).filter(g => g.n);
+  if (gaps.length) {
+    $('#misses').insertAdjacentHTML('beforeend', `<table style="margin-top:10px"><thead><tr><th>idle rewrites by pause length</th><th class="n">count</th><th class="n">est. $</th></tr></thead><tbody>` +
+      gaps.map(g => `<tr><td>${g.bucket}</td><td class="n">${g.n}</td><td class="n">${usd(g.cost)}</td></tr>`).join('') + '</tbody></table>');
+  }
+  const W = DATA.whatif || {};
+  let whatif = '';
+  if (W.write_cost_now) {
+    const d = W.write_cost_now - W.write_cost_alt;
+    whatif = W.ttl_alt === 60
+      ? ` What if the lifetime were 1 hour: main-conversation cache writes would cost about ${usd(W.write_cost_alt)} instead of ${usd(W.write_cost_now)} (${d >= 0 ? 'saving' : 'costing'} ${usd(Math.abs(d))}, ${pct(Math.abs(d)/Math.max(T.cost,1e-9))} of total): pauses under an hour stop rewriting, every write costs 2x input instead of 1.25x. Needs CLAUDE_CODE_PROMPT_CACHE_TTL=1h and a gateway that forwards it; this page's "observed" lifetime shows whether it took.`
+      : ` What if the lifetime were 5 minutes (API, Bedrock and gateway default): main-conversation cache writes would cost about ${usd(W.write_cost_alt)} instead of ${usd(W.write_cost_now)}, with ${W.extra_rewrites} more full rewrites after pauses of 5 to ${M.ttl_minutes} minutes.`;
+  }
+  $('#missNote').textContent = tot ? `Rewrites are ${pct(tot / Math.max(T.cost, 1e-9))} of estimated cost. Lifetime ${M.ttl_source}. Idle rewrites are avoidable: finish and /clear, or keep turns inside the cache lifetime.` + whatif : 'No large cache rewrites in the period.';
 }
 
 // ---------------- hourly

@@ -104,6 +104,25 @@ class CcdashTests(unittest.TestCase):
         self.assertEqual(d["meta"]["ttl_minutes"], 5)
         self.assertTrue(d["meta"]["ttl_source"].startswith("assumed"))
 
+    def test_whatif_other_lifetime(self):
+        # 5-minute cache observed: the 30-minute pause rewrite (27,300 tok) disappears under a 1-hour cache,
+        # every other main write is repriced from 1.25x to 2x input (Sonnet 5.5: $2.5 -> $4 per MTok)
+        write_session(self.root, one_hour=False)
+        d = self.run_agg()
+        w = d["whatif"]
+        self.assertEqual((w["ttl_now"], w["ttl_alt"]), (5, 60))
+        self.assertAlmostEqual(w["write_cost_now"], (24000 + 1200 + 2100 + 27300) * 2.5 / 1e6, places=4)
+        self.assertAlmostEqual(w["write_cost_alt"], (24000 + 1200 + 2100) * 4 / 1e6, places=4)
+        self.assertEqual([g["n"] for g in d["idle_gaps"]], [0, 1, 0, 0, 0])      # one idle rewrite, 15-60 min bucket
+        shutil.rmtree(self.root); os.makedirs(self.root)
+        write_session(self.root, one_hour=True)
+        d = self.run_agg()
+        w = d["whatif"]
+        self.assertEqual((w["ttl_now"], w["ttl_alt"]), (60, 5))
+        self.assertAlmostEqual(w["write_cost_now"], 54600 * 4 / 1e6, places=4)
+        self.assertAlmostEqual(w["write_cost_alt"], 54600 * 2.5 / 1e6, places=4)   # m4 is already a full rewrite (breaker)
+        self.assertEqual(w["extra_rewrites"], 0)
+
     def test_tool_attribution(self):
         write_session(self.root)
         d = self.run_agg()

@@ -42,7 +42,7 @@ Copy `config.example.json` to `config.json` next to `ccdash.py` (picked up autom
 | KPIs | estimated cost, tokens, cache hit rate, cost of idle rewrites, output share, thinking share | API `usage` fields (real) |
 | Per day | stacked cost (or tokens) by cache read / cache write / output / uncached input; max/median ratio | real |
 | By model, by project | cost, requests, cache hit | real |
-| Cache rewrites | large cache writes split into first request / idle gap / prefix breaker, with cost | real, classified with `ttl_minutes` |
+| Cache rewrites | large cache writes split into first request / idle gap / prefix breaker, with cost; idle rewrites by pause length; a what-if line pricing the other cache lifetime (1 hour vs 5 minutes) | real, classified with the detected lifetime |
 | When | cost by hour of day; off-hours cost reveals loops and scheduled tasks | real |
 | By tool | per tool and per MCP server: direct tokens, **carried** tokens (re-read on every later request), estimated cost, biggest single results | estimate from characters, with a calibration factor against the real counts |
 | Sessions | top sessions with a **why** label (big context, idle rewrites, prefix breakers, many requests, low cache hit, expensive model, subagent fan-out), peak context, cache hit, rewrite counts, subagents, images; click for the context growth curve | real |
