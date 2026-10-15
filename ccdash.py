@@ -522,7 +522,7 @@ def main(argv=None):
           f"cache hit {t['hit']*100:.1f}% (last {a.since or 'all'} days)")
     print(f"cache lifetime {data['meta']['ttl_minutes']} min ({data['meta']['ttl_source']})")
     if data["meta"]["unknown_models"]:
-        print("unknown models priced as Sonnet 5 (add to config aliases/prices): " + ", ".join(data["meta"]["unknown_models"]))
+        print("unknown models priced at the Sonnet-class fallback rate (add to config aliases/prices): " + ", ".join(data["meta"]["unknown_models"]))
     if a.open:
         webbrowser.open("file://" + os.path.abspath(a.out))
 

@@ -153,7 +153,7 @@ const niceMax = (v) => { if (v <= 0) return 1; const p = Math.pow(10, Math.floor
 // ---------------- header + KPIs
 const T = DATA.totals, M = DATA.meta;
 $('#subtitle').innerHTML = `Last ${M.since_days || 'all'} days · generated ${M.generated} · ${M.files} transcript files (${M.subagent_files} subagent) under <code>${esc(M.root)}</code> · cache lifetime ${M.ttl_minutes} min <span title="${esc(M.ttl_source || '')}">(${M.ttl_source && M.ttl_source.startsWith('observed') ? 'observed' : M.ttl_source === 'from config' ? 'from config' : 'assumed'})</span> · price × ${M.price_multiplier}`
-  + (M.unknown_models.length ? ` · <span class="warn">unknown models priced as Sonnet 5: ${esc(M.unknown_models.join(', '))}</span>` : '');
+  + (M.unknown_models.length ? ` · <span class="warn">unknown models priced at the Sonnet-class fallback rate: ${esc(M.unknown_models.join(', '))}</span>` : '');
 const comp = T.components || {};
 const writeShare = T.cost ? (comp.cache_write||0)/T.cost : 0, outShare = T.cost ? (comp.output||0)/T.cost : 0;
 const idle = DATA.misses.idle || {}, first = DATA.misses.first || {}, brk = DATA.misses.breaker || {};

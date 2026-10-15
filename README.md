@@ -22,7 +22,7 @@ Re-run whenever you want fresh numbers; it takes a few seconds for a few thousan
 
 Without a config file one thing is approximate, and it is printed after the run:
 
-- Model names a gateway reports (for example LiteLLM aliases) may be unknown, so they are priced as Sonnet 5 and listed after the run. Token counts stay exact; only the dollar estimates are off until you add them to `aliases`.
+- Model names a gateway reports (for example LiteLLM aliases) may be unknown, so they are priced at a Sonnet-class fallback rate and listed after the run. Token counts stay exact; only the dollar estimates are off until you add them to `aliases`.
 
 The cache lifetime (5 minutes on an API key, Bedrock, Vertex or a gateway; 60 minutes on a claude.ai subscription within plan usage) is detected from the usage fields, which tag every cache write as 5-minute or 1-hour. The run prints what it observed. If your gateway drops that breakdown it assumes 5 minutes; set `ttl_minutes` in the config to override.
 
@@ -32,7 +32,7 @@ Copy `config.example.json` to `config.json` next to `ccdash.py` (picked up autom
 
 - `ttl_minutes`: `"auto"` (default) detects the prompt-cache lifetime of your main conversation from the usage fields; set 5 or 60 to override. It decides whether a big cache rewrite is classified as "idle" (you paused longer than the lifetime) or "breaker" (something changed the prompt prefix).
 - `price_multiplier`: 1.10 for Bedrock regional inference profiles (`us.`, `eu.`), 1.0 otherwise.
-- `aliases`: the model names a gateway such as LiteLLM reports, mapped to real model ids. Unknown names are priced as Sonnet 5 and listed in the output so you can add them.
+- `aliases`: the model names a gateway such as LiteLLM reports, mapped to real model ids. Unknown names are priced at a Sonnet-class fallback rate and listed in the output so you can add them.
 - `prices`: override or add rates (USD per million tokens) to match a contract.
 
 ## What the dashboard shows
@@ -56,6 +56,14 @@ Copy `config.example.json` to `config.json` next to `ccdash.py` (picked up autom
 - **Peak context in the hundreds of thousands**: lower the auto-compact window (`CLAUDE_CODE_AUTO_COMPACT_WINDOW=300000`) or clear between tasks.
 - **Bash or Read at the top of the tool table**: cap `BASH_MAX_OUTPUT_LENGTH`, filter test output, deny reads of build directories.
 - **An MCP server high in the table**: its results are large; check `/context` for its schema cost too, and disable it in projects that do not need it.
+
+## Applying the fixes behind a gateway
+
+`docs/setup-runbook.md` is a procedure a Claude Code session can execute on the machine to configure: 1-hour cache lifetime, `haiku` alias on the newest Haiku the gateway offers, an `Explore` and a log-search subagent on Haiku with a 100k ceiling, optional caps. It names no model version: it discovers the gateway's model IDs and MCP server name itself, backs up and merges `~/.claude/settings.json`, and asks before anything optional.
+
+```bash
+claude "Read docs/setup-runbook.md and execute it step by step. Follow its rules section exactly."
+```
 
 ## Caveats
 
