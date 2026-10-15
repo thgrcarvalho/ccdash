@@ -1,8 +1,8 @@
 {
   "_comment": "Copy to config.json next to ccdash.py (it is picked up automatically) or pass --config. All keys optional.",
 
-  "ttl_minutes": 5,
-  "_ttl": "Main-conversation prompt-cache lifetime used to classify rewrites: 60 on a claude.ai subscription within plan usage, 5 on an API key, Bedrock, Vertex or a gateway unless CLAUDE_CODE_PROMPT_CACHE_TTL=1h is set.",
+  "ttl_minutes": "auto",
+  "_ttl": "Main-conversation prompt-cache lifetime used to classify rewrites. 'auto' reads it from the usage fields (every cache write is tagged 5-minute or 1-hour). Override with 60 (claude.ai subscription within plan usage) or 5 (API key, Bedrock, Vertex, gateway) if your gateway drops that breakdown.",
 
   "price_multiplier": 1.10,
   "_multiplier": "1.10 for Bedrock regional/multi-region inference profiles (us., eu., apac.), 1.0 for global. or the Anthropic API.",

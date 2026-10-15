@@ -40,7 +40,7 @@ DEFAULT_PRICES = {
     "haiku-4":    {"input": 1,    "output": 5,   "cache_read": 0.10},
 }
 DEFAULT_CONFIG = {
-    "ttl_minutes": 60,          # main-conversation cache lifetime: 60 on a subscription, 5 on API/Bedrock/gateway
+    "ttl_minutes": "auto",      # "auto" reads the lifetime from the usage fields; or 60 (subscription) / 5 (API, Bedrock, gateway)
     "price_multiplier": 1.0,    # e.g. 1.10 for Bedrock regional (us./eu.) inference profiles
     "chars_per_token": 3.5,     # for tool-result estimates only; real usage comes from the API fields
     "aliases": {},              # {"gateway-model-name": "claude-sonnet-5-5"}
@@ -170,7 +170,7 @@ def read_file(path, root, cpt):
                 cw = u.get("cache_creation_input_tokens") or 0
                 rec = {
                     "model": m["model"], "in": u.get("input_tokens") or 0, "out": u.get("output_tokens") or 0,
-                    "cw": cw, "cw1": min(cc.get("ephemeral_1h_input_tokens") or 0, cw),
+                    "cw": cw, "cw1": min(cc.get("ephemeral_1h_input_tokens") or 0, cw), "has_cc": bool(cc),
                     "cr": u.get("cache_read_input_tokens") or 0,
                     "think": (u.get("output_tokens_details") or {}).get("thinking_tokens") or 0,
                     "ts": when, "sid": sid, "project": project, "sub": is_sub,
@@ -217,15 +217,44 @@ def downsample(series, n=40):
     return out
 
 
+def detect_ttl(parsed, in_period):
+    """Cache lifetime of the main conversation, read from the usage fields.
+
+    Returns (minutes, source, share_of_1h_writes). The API reports each cache write as
+    ephemeral_5m or ephemeral_1h; if most main-conversation writes are 1h the lifetime is
+    60 minutes, otherwise 5. Without the breakdown (some gateways drop it) assume 5.
+    """
+    cw = cw1 = 0
+    seen_breakdown = False
+    for f in parsed:
+        if f["sub"]:
+            continue
+        for e in f["events"]:
+            if e[0] == "req" and in_period(e[1]["ts"]):
+                cw += e[1]["cw"]
+                cw1 += e[1]["cw1"]
+                seen_breakdown = seen_breakdown or e[1]["has_cc"]
+    if not seen_breakdown or cw == 0:
+        return 5, "assumed 5 min: the usage fields carry no cache-lifetime breakdown", None
+    share = cw1 / cw
+    if share >= 0.5:
+        return 60, f"observed: {share*100:.0f}% of main-conversation cache writes used the 1-hour lifetime", share
+    return 5, f"observed: {(1-share)*100:.0f}% of main-conversation cache writes used the 5-minute lifetime", share
+
+
 def aggregate(root, cfg, since_days, pricing):
     now = dt.datetime.now(dt.timezone.utc)
     cutoff = now - dt.timedelta(days=since_days) if since_days else None
-    ttl = dt.timedelta(minutes=float(cfg["ttl_minutes"]))
     cpt = float(cfg["chars_per_token"])
     main, subs = find_files(root)
     parsed = [read_file(p, root, cpt) for p in main + subs]
 
     in_period = lambda ts: ts is not None and (cutoff is None or ts >= cutoff)
+    if str(cfg["ttl_minutes"]).lower() == "auto":
+        ttl_min, ttl_source, share_1h = detect_ttl(parsed, in_period)
+    else:
+        ttl_min, ttl_source, share_1h = float(cfg["ttl_minutes"]), "from config", None
+    ttl = dt.timedelta(minutes=ttl_min)
     totals = collections.Counter()
     comp = collections.Counter()
     daily = collections.defaultdict(lambda: collections.Counter())
@@ -399,7 +428,9 @@ def aggregate(root, cfg, since_days, pricing):
     return {
         "meta": {
             "generated": now.astimezone().strftime("%Y-%m-%d %H:%M"), "since_days": since_days, "root": root,
-            "files": len(main) + len(subs), "subagent_files": len(subs), "ttl_minutes": cfg["ttl_minutes"],
+            "files": len(main) + len(subs), "subagent_files": len(subs),
+            "ttl_minutes": int(ttl_min) if float(ttl_min).is_integer() else ttl_min, "ttl_source": ttl_source,
+            "share_1h": None if share_1h is None else round(share_1h, 3),
             "price_multiplier": cfg["price_multiplier"], "unknown_models": sorted(pricing.unknown),
             "calibration": round(real_new / est_new, 2) if est_new else None,
         },
@@ -463,7 +494,8 @@ def main(argv=None):
     render(data, os.path.join(here, "template.html"), a.out)
     t = data["totals"]
     print(f"wrote {a.out}: {t['requests']:,} requests, {t['sessions']} sessions, est. ${t['cost']:,.2f}, "
-          f"cache hit {t['hit']*100:.1f}% (last {a.since or 'all'} days, TTL {cfg['ttl_minutes']} min)")
+          f"cache hit {t['hit']*100:.1f}% (last {a.since or 'all'} days)")
+    print(f"cache lifetime {data['meta']['ttl_minutes']} min ({data['meta']['ttl_source']})")
     if data["meta"]["unknown_models"]:
         print("unknown models priced as Sonnet 5 (add to config aliases/prices): " + ", ".join(data["meta"]["unknown_models"]))
     if a.open:

@@ -20,16 +20,17 @@ python3 ccdash.py --json data.json        # the aggregated numbers, no HTML
 
 Re-run whenever you want fresh numbers; it takes a few seconds for a few thousand transcripts.
 
-Without a config file two things are approximate, and both are printed or visible in the output:
+Without a config file one thing is approximate, and it is printed after the run:
 
-- The cache lifetime is assumed to be 60 minutes (the claude.ai subscription value). On an API key, Bedrock, Vertex or a gateway it is 5 minutes, so some rewrites that were really "idle" are labelled "breaker". Totals, tokens and the cache hit rate are not affected.
-- Model names a gateway reports (for example LiteLLM aliases) are unknown, so they are priced as Sonnet 5 and listed after the run. Token counts stay exact; only the dollar estimates are off until you add them to `aliases`.
+- Model names a gateway reports (for example LiteLLM aliases) may be unknown, so they are priced as Sonnet 5 and listed after the run. Token counts stay exact; only the dollar estimates are off until you add them to `aliases`.
+
+The cache lifetime (5 minutes on an API key, Bedrock, Vertex or a gateway; 60 minutes on a claude.ai subscription within plan usage) is detected from the usage fields, which tag every cache write as 5-minute or 1-hour. The run prints what it observed. If your gateway drops that breakdown it assumes 5 minutes; set `ttl_minutes` in the config to override.
 
 ## Configure for your machine (optional)
 
 Copy `config.example.json` to `config.json` next to `ccdash.py` (picked up automatically; it stays inside this folder and is ignored by git) and set:
 
-- `ttl_minutes`: the prompt-cache lifetime of your main conversation. 60 on a claude.ai subscription within plan usage, **5 on an API key, Bedrock, Vertex or a gateway** unless `CLAUDE_CODE_PROMPT_CACHE_TTL=1h` is set. It decides whether a big cache rewrite is classified as "idle" (you paused longer than the lifetime) or "breaker" (something changed the prompt prefix).
+- `ttl_minutes`: `"auto"` (default) detects the prompt-cache lifetime of your main conversation from the usage fields; set 5 or 60 to override. It decides whether a big cache rewrite is classified as "idle" (you paused longer than the lifetime) or "breaker" (something changed the prompt prefix).
 - `price_multiplier`: 1.10 for Bedrock regional inference profiles (`us.`, `eu.`), 1.0 otherwise.
 - `aliases`: the model names a gateway such as LiteLLM reports, mapped to real model ids. Unknown names are priced as Sonnet 5 and listed in the output so you can add them.
 - `prices`: override or add rates (USD per million tokens) to match a contract.

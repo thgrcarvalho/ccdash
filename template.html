@@ -152,7 +152,7 @@ const niceMax = (v) => { if (v <= 0) return 1; const p = Math.pow(10, Math.floor
 
 // ---------------- header + KPIs
 const T = DATA.totals, M = DATA.meta;
-$('#subtitle').innerHTML = `Last ${M.since_days || 'all'} days · generated ${M.generated} · ${M.files} transcript files (${M.subagent_files} subagent) under <code>${esc(M.root)}</code> · cache TTL assumed ${M.ttl_minutes} min · price × ${M.price_multiplier}`
+$('#subtitle').innerHTML = `Last ${M.since_days || 'all'} days · generated ${M.generated} · ${M.files} transcript files (${M.subagent_files} subagent) under <code>${esc(M.root)}</code> · cache lifetime ${M.ttl_minutes} min <span title="${esc(M.ttl_source || '')}">(${M.ttl_source && M.ttl_source.startsWith('observed') ? 'observed' : M.ttl_source === 'from config' ? 'from config' : 'assumed'})</span> · price × ${M.price_multiplier}`
   + (M.unknown_models.length ? ` · <span class="warn">unknown models priced as Sonnet 5: ${esc(M.unknown_models.join(', '))}</span>` : '');
 const comp = T.components || {};
 const writeShare = T.cost ? (comp.cache_write||0)/T.cost : 0, outShare = T.cost ? (comp.output||0)/T.cost : 0;
@@ -219,13 +219,13 @@ hbars($('#projects'), DATA.projects.slice(0, 12).map(r => ({...r, _label: r.proj
 
 // ---------------- cache rewrites
 {
-  const rows = [['first', 'first request of a session', DATA.misses.first], ['idle', `after a pause > ${M.ttl_minutes} min`, DATA.misses.idle], ['breaker', 'prefix changed (model, effort, tools, compaction, images)', DATA.misses.breaker]]
+  const rows = [['first', 'first request of a session', DATA.misses.first], ['idle', `after a pause > ${M.ttl_minutes} min`, DATA.misses.idle], ['breaker', 'prefix changed with no pause (model or effort switch, tool list, image pruning, CLI update)', DATA.misses.breaker]]
     .map(([k, l, v]) => ({k, l, n: v.n||0, tok: v.tok||0, cost: v.cost||0}));
   const max = Math.max(1e-9, ...rows.map(r => r.cost));
   $('#misses').innerHTML = `<table><thead><tr><th>large cache writes (&gt; 20k tokens)</th><th></th><th class="n">count</th><th class="n">tokens</th><th class="n">est. $</th></tr></thead><tbody>` +
     rows.map(r => `<tr><td>${r.l}</td><td style="width:30%"><span class="bar" style="width:${(r.cost/max*100).toFixed(1)}%;background:var(--s2)"></span></td><td class="n">${r.n}</td><td class="n">${fmt(r.tok)}</td><td class="n">${usd(r.cost)}</td></tr>`).join('') + '</tbody></table>';
   const tot = rows.reduce((s,r) => s + r.cost, 0);
-  $('#missNote').textContent = tot ? `Rewrites are ${pct(tot / Math.max(T.cost, 1e-9))} of estimated cost. Idle rewrites are avoidable: finish and /clear, or keep turns inside the cache lifetime. On Bedrock the lifetime is 5 min unless CLAUDE_CODE_PROMPT_CACHE_TTL=1h is set.` : 'No large cache rewrites in the period.';
+  $('#missNote').textContent = tot ? `Rewrites are ${pct(tot / Math.max(T.cost, 1e-9))} of estimated cost. Lifetime ${M.ttl_source}. Idle rewrites are avoidable: finish and /clear, or keep turns inside the cache lifetime. On Bedrock the lifetime is 5 min unless CLAUDE_CODE_PROMPT_CACHE_TTL=1h is set.` : 'No large cache rewrites in the period.';
 }
 
 // ---------------- hourly
@@ -293,7 +293,7 @@ hbars($('#projects'), DATA.projects.slice(0, 12).map(r => ({...r, _label: r.proj
 
 $('#method').innerHTML = `Source: every <code>*.jsonl</code> under the transcripts root, including subagent transcripts (folded into their parent session). One API response is written as several lines sharing <code>message.id</code>; they are de-duplicated. Token counts in the per-day, per-model, per-project, per-session and cache sections are the API's own <code>usage</code> fields (real). Dollar figures are list prices × the configured multiplier applied to those counts: on a subscription they are what the usage would have cost on the API; through a gateway or Bedrock they approximate the bill only if the config prices match your contract. Per-tool numbers are estimates from characters (${(3.5).toFixed(1)} chars per token; images by 28-px patches)` +
   (M.calibration ? `; calibration this run: API-reported new tokens per request ÷ estimated = <b>${M.calibration}</b> (the API side also contains system reminders and your own messages, so above 1 is normal).` : '.') +
-  ` Cache rewrites are classified with a ${M.ttl_minutes}-minute lifetime; set <code>ttl_minutes</code> to 5 for API, Bedrock or gateway use. Not visible here: MCP tool schema cost in the prompt prefix (<code>/context</code>), and tokens of results that were written to files instead of the context.`;
+  ` Cache rewrites are classified with a ${M.ttl_minutes}-minute lifetime (${M.ttl_source}); the API tags every cache write as 5-minute or 1-hour, which is how it is detected; override with <code>ttl_minutes</code> in the config if your gateway drops that field. Not visible here: MCP tool schema cost in the prompt prefix (<code>/context</code>), and tokens of results that were written to files instead of the context.`;
 </script>
 </body>
 </html>
