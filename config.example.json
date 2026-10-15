@@ -1,0 +1,25 @@
+{
+  "_comment": "Copy to config.json next to ccdash.py (it is picked up automatically) or pass --config. All keys optional.",
+
+  "ttl_minutes": 5,
+  "_ttl": "Main-conversation prompt-cache lifetime used to classify rewrites: 60 on a claude.ai subscription within plan usage, 5 on an API key, Bedrock, Vertex or a gateway unless CLAUDE_CODE_PROMPT_CACHE_TTL=1h is set.",
+
+  "price_multiplier": 1.10,
+  "_multiplier": "1.10 for Bedrock regional/multi-region inference profiles (us., eu., apac.), 1.0 for global. or the Anthropic API.",
+
+  "aliases": {
+    "claude-sonnet-work": "claude-sonnet-5-5",
+    "us.anthropic.claude-opus-5-5": "claude-opus-5-5",
+    "bedrock-opus": "claude-opus-5-5"
+  },
+  "_aliases": "Map the model names your gateway reports (as they appear in the transcripts' message.model) to a real model id so pricing matches. Run ccdash once; unknown names are printed.",
+
+  "prices": {
+    "sonnet-5-5": {"input": 2, "output": 10, "cache_read": 0.10, "cache_write_5m": 2.5, "cache_write_1h": 4}
+  },
+  "_prices": "USD per million tokens, matched as substrings of the (aliased) model id. cache_write_* default to 1.25x and 2x input.",
+
+  "chars_per_token": 3.5,
+  "top_sessions": 15,
+  "top_tools": 30
+}
