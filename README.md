@@ -8,8 +8,10 @@ Requirements: Python 3.9+ (standard library only) and a browser.
 
 ## Run
 
+No configuration is needed for a first look, and nothing about Claude Code itself is changed: the script only reads `~/.claude/projects` and writes one HTML file in the current folder.
+
 ```bash
-git clone <this repo> && cd ccdash
+git clone https://github.com/thgrcarvalho/ccdash.git && cd ccdash
 python3 ccdash.py --since 30 --open       # last 30 days -> ./ccdash.html, opened in the browser
 python3 ccdash.py --since 7
 python3 ccdash.py --since 0 --out all.html
@@ -18,9 +20,14 @@ python3 ccdash.py --json data.json        # the aggregated numbers, no HTML
 
 Re-run whenever you want fresh numbers; it takes a few seconds for a few thousand transcripts.
 
-## Configure for your machine
+Without a config file two things are approximate, and both are printed or visible in the output:
 
-Copy `config.example.json` to `config.json` (picked up automatically) and set:
+- The cache lifetime is assumed to be 60 minutes (the claude.ai subscription value). On an API key, Bedrock, Vertex or a gateway it is 5 minutes, so some rewrites that were really "idle" are labelled "breaker". Totals, tokens and the cache hit rate are not affected.
+- Model names a gateway reports (for example LiteLLM aliases) are unknown, so they are priced as Sonnet 5 and listed after the run. Token counts stay exact; only the dollar estimates are off until you add them to `aliases`.
+
+## Configure for your machine (optional)
+
+Copy `config.example.json` to `config.json` next to `ccdash.py` (picked up automatically; it stays inside this folder and is ignored by git) and set:
 
 - `ttl_minutes`: the prompt-cache lifetime of your main conversation. 60 on a claude.ai subscription within plan usage, **5 on an API key, Bedrock, Vertex or a gateway** unless `CLAUDE_CODE_PROMPT_CACHE_TTL=1h` is set. It decides whether a big cache rewrite is classified as "idle" (you paused longer than the lifetime) or "breaker" (something changed the prompt prefix).
 - `price_multiplier`: 1.10 for Bedrock regional inference profiles (`us.`, `eu.`), 1.0 otherwise.
